@@ -1,4 +1,4 @@
-name: Build Kranol 4.14 
+name: Build Kranol 4.14
 
 on:
   workflow_dispatch:
@@ -14,13 +14,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
       CCACHE_MAXSIZE: "2G"
       CCACHE_HARDLINK: "true"
       KERNEL_DEFCONFIG: "vayu_defconfig"
-      KERNEL_CMDLINE: "ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- O=out"
 
     steps:
       - name: Checkout
@@ -35,13 +35,31 @@ jobs:
       - name: Install dependencies & toolchain
         run: |
           sudo apt-get update -y
+
           sudo apt install -y \
-            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
-            aria2 binutils make python3 libssl-dev build-essential \
-            bc bison flex unzip ca-certificates xz-utils \
-            cpio device-tree-compiler git git-lfs curl wget
+            gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabi \
+            aria2 \
+            binutils \
+            make \
+            python3 \
+            libssl-dev \
+            build-essential \
+            bc \
+            bison \
+            flex \
+            unzip \
+            ca-certificates \
+            xz-utils \
+            cpio \
+            device-tree-compiler \
+            git \
+            git-lfs \
+            curl \
+            wget
 
           sudo apt-get install -y python2 || true
+
           if ! command -v python2 >/dev/null 2>&1; then
             sudo ln -sf /usr/bin/python3 /usr/bin/python2
           fi
@@ -54,25 +72,50 @@ jobs:
         run: |
           echo ">>> Removing previous build outputs..."
           rm -rf out
+
           echo ">>> Running mrproper to fully clean source tree..."
           make mrproper
 
       - name: GetTime
         id: get_time
-        run: echo "TIME=$(TZ=UTC+3 date +%s)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "TIME=$(TZ=UTC+3 date +%s)" >> "$GITHUB_OUTPUT"
 
       - name: Build Kernel-With-KernelSU (with logging)
         run: |
-          export PATH="$(pwd)/google-clang/bin/:$PATH"
+          export PATH="$(pwd)/google-clang/bin:$PATH"
+
+          export ARCH=arm64
+          export SUBARCH=arm64
+
+          export LLVM=1
+          export LLVM_IAS=1
           export LD=ld.lld
 
+          echo ">>> Clang version:"
+          clang --version
+
+          echo ">>> LLD version:"
+          ld.lld --version
+
           echo ">>> Starting defconfig build..."
-          make $KERNEL_CMDLINE $KERNEL_DEFCONFIG CC="ccache clang" 2>&1 | tee build_defconfig.log
+          make O=out \
+            CC="ccache clang" \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            $KERNEL_DEFCONFIG 2>&1 | tee build_defconfig.log
 
           echo ">>> Starting kernel compilation (Image only)..."
-          make $KERNEL_CMDLINE CC="ccache clang" -j"$(nproc --all)" Image 2>&1 | tee build_kernel.log
+          make -j"$(nproc --all)" O=out \
+            CC="ccache clang" \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            Image 2>&1 | tee build_kernel.log
 
           BUILD_RESULT=${PIPESTATUS[0]}
+
           if [ "$BUILD_RESULT" -ne 0 ]; then
             echo "❌ Kernel build failed. Logs will be uploaded."
             exit 1
