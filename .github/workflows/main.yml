@@ -39,7 +39,7 @@ jobs:
             gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
             aria2 binutils make python3 libssl-dev build-essential \
             bc bison flex unzip ca-certificates xz-utils \
-            mkbootimg cpio device-tree-compiler git git-lfs curl wget
+            cpio device-tree-compiler git git-lfs curl wget
 
           sudo apt-get install -y python2 || true
           if ! command -v python2 >/dev/null 2>&1; then
@@ -49,11 +49,6 @@ jobs:
           git clone --depth=1 \
             https://gitlab.com/crdroidandroid/android_prebuilts_clang_host_linux-x86_clang-r547379.git \
             google-clang
-
-          MKDTBO_PATH="scripts/dtc/libfdt/mkdtboimg.py"
-          curl -L "https://android.googlesource.com/platform/system/libufdt/+/refs/heads/main/utils/src/mkdtboimg.py?format=TEXT" \
-            | base64 --decode > "$MKDTBO_PATH"
-          chmod +x "$MKDTBO_PATH"
 
       - name: Clean previous build (full clean)
         run: |
@@ -74,8 +69,8 @@ jobs:
           echo ">>> Starting defconfig build..."
           make $KERNEL_CMDLINE $KERNEL_DEFCONFIG CC="ccache clang" 2>&1 | tee build_defconfig.log
 
-          echo ">>> Starting kernel compilation (Image + dtbo.img)..."
-          make $KERNEL_CMDLINE CC="ccache clang" -j"$(nproc --all)" Image dtbo.img 2>&1 | tee build_kernel.log
+          echo ">>> Starting kernel compilation (Image only)..."
+          make $KERNEL_CMDLINE CC="ccache clang" -j"$(nproc --all)" Image 2>&1 | tee build_kernel.log
 
           BUILD_RESULT=${PIPESTATUS[0]}
           if [ "$BUILD_RESULT" -ne 0 ]; then
@@ -101,4 +96,3 @@ jobs:
           name: Raw_Kernel-${{ steps.get_time.outputs.TIME }}
           path: |
             out/arch/arm64/boot/Image
-            out/arch/arm64/boot/dtbo.img
